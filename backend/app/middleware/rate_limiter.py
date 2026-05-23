@@ -14,9 +14,9 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app,
-        requests_per_minute: int = 60,
-        requests_per_second: int = 10,
-        blocked_duration: int = 60,
+        requests_per_minute: int = 300,
+        requests_per_second: int = 50,
+        blocked_duration: int = 30,
     ):
         super().__init__(app)
         self.requests_per_minute = requests_per_minute

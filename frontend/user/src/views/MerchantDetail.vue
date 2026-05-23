@@ -150,17 +150,17 @@
     </div>
 
     <!-- 购物车浮窗 -->
-    <div class="cart-float-bar" v-if="cartStore.totalQuantity > 0">
+    <div class="cart-float-bar" v-if="currentMerchantTotalQuantity > 0">
       <div class="cart-icon-wrapper" @click="goToCart">
         <div class="cart-icon-badge">
           <van-icon name="cart-o" size="24" color="#fff" />
-          <van-badge :content="cartStore.totalQuantity" :max="99" class="cart-badge" />
+          <van-badge :content="currentMerchantTotalQuantity" :max="99" class="cart-badge" />
         </div>
       </div>
       <div class="cart-total-info" @click="goToCart">
         <div class="cart-total-price">
           <span class="price-symbol">¥</span>
-          <span class="price-value">{{ cartStore.formattedTotalPrice }}</span>
+          <span class="price-value">{{ currentMerchantFormattedTotalPrice }}</span>
         </div>
         <div class="cart-tip">不含配送费</div>
       </div>
@@ -170,7 +170,7 @@
     </div>
 
     <!-- 底部占位（购物车浮窗高度） -->
-    <div class="bottom-spacer" v-if="cartStore.totalQuantity > 0"></div>
+    <div class="bottom-spacer" v-if="currentMerchantTotalQuantity > 0"></div>
   </div>
 </template>
 
@@ -197,6 +197,24 @@ const productsPage = ref(1)
 const productsPageSize = 20
 
 const productCartQuantity = ref({})
+
+const currentMerchantCartItems = computed(() => {
+  return cartStore.items.filter((i) => i.merchant_id === merchantId.value)
+})
+
+const currentMerchantTotalQuantity = computed(() => {
+  return currentMerchantCartItems.value.reduce((sum, item) => sum + item.quantity, 0)
+})
+
+const currentMerchantTotalPrice = computed(() => {
+  return currentMerchantCartItems.value.reduce((sum, item) => {
+    return sum + parseFloat(item.price) * item.quantity
+  }, 0)
+})
+
+const currentMerchantFormattedTotalPrice = computed(() => {
+  return currentMerchantTotalPrice.value.toFixed(2)
+})
 
 const currentCategory = computed(() => {
   if (activeCategoryId.value === null) return null
