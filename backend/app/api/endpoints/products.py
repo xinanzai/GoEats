@@ -15,6 +15,9 @@ router = APIRouter()
 async def get_my_products(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页大小"),
+    keyword: Optional[str] = Query(None, description="搜索商品名称"),
+    category_id: Optional[int] = Query(None, description="分类ID筛选"),
+    is_available: Optional[bool] = Query(None, description="上架状态筛选"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -28,6 +31,9 @@ async def get_my_products(
         merchant_user_id=current_user.id,
         page=page,
         page_size=page_size,
+        keyword=keyword,
+        category_id=category_id,
+        is_available=is_available,
     )
 
     items = [ProductResponse.model_validate(p) for p in products]

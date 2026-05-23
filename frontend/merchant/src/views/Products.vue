@@ -333,6 +333,15 @@ async function fetchProductList() {
       page: pagination.page,
       page_size: pagination.page_size
     }
+    if (searchForm.keyword) {
+      params.keyword = searchForm.keyword
+    }
+    if (searchForm.category_id) {
+      params.category_id = searchForm.category_id
+    }
+    if (searchForm.is_available !== '') {
+      params.is_available = searchForm.is_available
+    }
     const data = await getMyProducts(params)
     productList.value = data.items || []
     pagination.total = data.total || 0

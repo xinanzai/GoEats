@@ -254,6 +254,9 @@ class ProductService:
         merchant_user_id: int,
         page: int = 1,
         page_size: int = 20,
+        keyword: Optional[str] = None,
+        category_id: Optional[int] = None,
+        is_available: Optional[bool] = None,
     ) -> Tuple[list[Product], int]:
         """获取商家的商品列表。
 
@@ -261,6 +264,9 @@ class ProductService:
             merchant_user_id: 商家用户 ID。
             page: 页码。
             page_size: 每页大小。
+            keyword: 搜索关键词（商品名称）。
+            category_id: 分类 ID 筛选。
+            is_available: 上架状态筛选。
 
         Returns:
             商品列表和总数的元组。
@@ -273,18 +279,24 @@ class ProductService:
         if not merchant:
             return [], 0
 
+        # 构建查询条件
+        conditions = [Product.merchant_id == merchant.id]
+        if keyword:
+            conditions.append(Product.name.contains(keyword))
+        if category_id:
+            conditions.append(Product.category_id == category_id)
+        if is_available is not None:
+            conditions.append(Product.is_available == is_available)
+
         # 查询总数
-        count_query = (
-            select(func.count(Product.id))
-            .where(Product.merchant_id == merchant.id)
-        )
+        count_query = select(func.count(Product.id)).where(*conditions)
         total_result = await self.db.execute(count_query)
         total = total_result.scalar()
 
         # 查询数据
         query = (
             select(Product)
-            .where(Product.merchant_id == merchant.id)
+            .where(*conditions)
             .order_by(Product.sort_order.asc(), Product.created_at.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
