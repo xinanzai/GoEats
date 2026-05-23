@@ -295,7 +295,7 @@ async function handleSubmitOrder() {
 
     const order = await createOrder(orderData)
 
-    cartStore.clearCart()
+    cartStore.removeItemsByMerchant(merchantId.value)
 
     showToast('订单提交成功')
     router.push({

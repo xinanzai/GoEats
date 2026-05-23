@@ -251,7 +251,8 @@ async function fetchProducts() {
 
     items.forEach((product) => {
       if (!(product.id in productCartQuantity.value)) {
-        productCartQuantity.value[product.id] = 0
+        const cartItem = cartStore.items.find((i) => i.product_id === product.id)
+        productCartQuantity.value[product.id] = cartItem ? cartItem.quantity : 0
       }
     })
 
@@ -298,6 +299,7 @@ function onCartQuantityChange(product, newQuantity) {
       cartStore.addItem({
         product_id: product.id,
         merchant_id: product.merchant_id,
+        merchant_name: merchant.value?.business_name || '',
         name: product.name,
         price: product.price,
         image_url: product.image_url,
@@ -313,21 +315,22 @@ function goToCart() {
 }
 
 watch(
-  () => route.params.id,
-  (newId) => {
-    if (newId) {
-      merchant.value = null
-      categories.value = []
-      products.value = []
-      activeCategoryId.value = null
-      productsPage.value = 1
-      productsFinished.value = false
-      fetchMerchantDetail()
-      fetchCategories()
-      fetchProducts()
+    () => route.params.id,
+    (newId) => {
+      if (newId) {
+        merchant.value = null
+        categories.value = []
+        products.value = []
+        productCartQuantity.value = {}
+        activeCategoryId.value = null
+        productsPage.value = 1
+        productsFinished.value = false
+        fetchMerchantDetail()
+        fetchCategories()
+        fetchProducts()
+      }
     }
-  }
-)
+  )
 
 onMounted(() => {
   fetchMerchantDetail()

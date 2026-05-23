@@ -3,21 +3,30 @@
     <van-nav-bar title="购物车" />
 
     <div class="content">
-      <van-empty v-if="cartItems.length === 0" description="购物车是空的">
+      <van-empty v-if="cartStore.items.length === 0" description="购物车是空的">
         <van-button type="primary" @click="$router.push('/')">去逛逛</van-button>
       </van-empty>
 
       <div v-else class="cart-body">
-        <div class="merchant-section">
+        <div
+          v-for="group in merchantGroups"
+          :key="group.merchant_id"
+          class="merchant-section"
+        >
           <div class="merchant-header">
             <div class="merchant-name">
-              {{ merchantName }}
+              {{ group.merchant_name || '商家' }}
             </div>
+            <van-icon
+              name="delete-o"
+              class="merchant-delete-btn"
+              @click="handleDeleteGroup(group.merchant_id)"
+            />
           </div>
 
           <div class="cart-item-list">
             <div
-              v-for="item in cartItems"
+              v-for="item in group.items"
               :key="item.product_id"
               class="cart-item"
             >
@@ -45,7 +54,7 @@
 
               <div class="item-actions">
                 <van-stepper
-                  v-model="item.quantity"
+                  :model-value="item.quantity"
                   :min="1"
                   :max="99"
                   @change="onQuantityChange(item.product_id, $event)"
@@ -58,29 +67,25 @@
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <div class="cart-footer" v-if="cartItems.length > 0">
-      <div class="footer-left">
-        <van-checkbox v-model="selectAll" @change="onSelectAll">全选</van-checkbox>
-        <div class="total-price">
-          <span class="price-label">合计：</span>
-          <span class="price-symbol">¥</span>
-          <span class="price-value">{{ formattedTotalPrice }}</span>
+          <div class="merchant-footer">
+            <div class="merchant-total">
+              <span class="price-label">小计：</span>
+              <span class="price-symbol">¥</span>
+              <span class="price-value">{{ formatPrice(group.totalPrice) }}</span>
+            </div>
+            <div class="merchant-checkout-btn" @click="handleCheckout(group)">
+              去结算
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="footer-right" @click="handleCheckout">
-        <span class="checkout-count">{{ totalQuantity }}</span>
-        <span>结算</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/store/cart'
 import { getMerchantDetail } from '@/api/merchants'
@@ -88,42 +93,36 @@ import { showConfirmDialog, showToast } from 'vant'
 
 const router = useRouter()
 const cartStore = useCartStore()
-const selectAll = ref(true)
-const merchantName = ref('')
 
-const cartItems = computed(() => cartStore.items)
-
-const totalQuantity = computed(() => {
-  return cartStore.totalQuantity
-})
-
-const totalPrice = computed(() => {
-  return cartStore.totalPrice
-})
-
-const formattedTotalPrice = computed(() => {
-  return cartStore.formattedTotalPrice
-})
+const merchantGroups = ref([])
 
 function formatPrice(price) {
   return parseFloat(price).toFixed(2)
 }
 
-async function fetchMerchantName() {
-  if (cartItems.value.length > 0) {
-    const firstItem = cartItems.value[0]
-    try {
-      const merchant = await getMerchantDetail(firstItem.merchant_id)
-      merchantName.value = merchant.business_name
-    } catch (error) {
-      console.error('获取商家信息失败:', error)
-      merchantName.value = '商家'
+async function fetchMerchantNames() {
+  const groups = cartStore.merchantGroups
+  for (const group of groups) {
+    if (!group.merchant_name) {
+      try {
+        const merchant = await getMerchantDetail(group.merchant_id)
+        group.merchant_name = merchant.business_name
+      } catch (error) {
+        console.error('获取商家信息失败:', error)
+        group.merchant_name = '商家'
+      }
     }
   }
+  merchantGroups.value = groups
+}
+
+function refreshCart() {
+  merchantGroups.value = cartStore.merchantGroups
 }
 
 function onQuantityChange(productId, newQuantity) {
   cartStore.updateQuantity(productId, newQuantity)
+  refreshCart()
 }
 
 async function handleDelete(productId) {
@@ -134,48 +133,51 @@ async function handleDelete(productId) {
     })
     cartStore.removeItem(productId)
     showToast('已删除')
-    if (cartItems.value.length === 0) {
-      merchantName.value = ''
-    }
+    refreshCart()
   } catch (error) {
-    // 用户取消
   }
 }
 
-function onSelectAll(value) {
-  showToast(value ? '已全选' : '已取消全选')
+async function handleDeleteGroup(merchantId) {
+  try {
+    await showConfirmDialog({
+      title: '确认清空',
+      message: '确定要清空该商家的所有商品吗？',
+    })
+    cartStore.removeItemsByMerchant(merchantId)
+    showToast('已清空')
+    refreshCart()
+  } catch (error) {
+  }
 }
 
-function handleCheckout() {
-  if (cartItems.value.length === 0) {
-    showToast('购物车是空的')
+function handleCheckout(group) {
+  if (group.items.length === 0) {
+    showToast('该商家没有商品')
     return
   }
 
-  const checkoutData = {
-    items: cartItems.value.map((item) => ({
-      product_id: item.product_id,
-      merchant_id: item.merchant_id,
-      name: item.name,
-      price: item.price,
-      image_url: item.image_url,
-      quantity: item.quantity,
-    })),
-    merchant_id: cartItems.value[0].merchant_id,
-  }
+  const items = group.items.map((item) => ({
+    product_id: item.product_id,
+    merchant_id: item.merchant_id,
+    name: item.name,
+    price: item.price,
+    image_url: item.image_url,
+    quantity: item.quantity,
+  }))
 
   router.push({
     path: '/checkout',
     query: {
-      items: JSON.stringify(checkoutData.items),
-      merchant_id: checkoutData.merchant_id,
+      items: JSON.stringify(items),
+      merchant_id: group.merchant_id,
     },
   })
 }
 
 onMounted(() => {
-  if (cartItems.value.length > 0) {
-    fetchMerchantName()
+  if (cartStore.items.length > 0) {
+    fetchMerchantNames()
   }
 })
 </script>
@@ -184,7 +186,7 @@ onMounted(() => {
 .cart {
   min-height: 100vh;
   background-color: #f7f8fa;
-  padding-bottom: 100px;
+  padding-bottom: 30px;
 }
 
 .content {
@@ -205,12 +207,21 @@ onMounted(() => {
 .merchant-header {
   padding: 12px 16px;
   border-bottom: 1px solid #f7f8fa;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .merchant-name {
   font-size: 14px;
   color: #323233;
   font-weight: 500;
+}
+
+.merchant-delete-btn {
+  color: #969799;
+  font-size: 18px;
+  cursor: pointer;
 }
 
 .cart-item-list {
@@ -285,30 +296,18 @@ onMounted(() => {
   cursor: pointer;
 }
 
-.cart-footer {
-  position: fixed;
-  bottom: 50px;
-  left: 0;
-  right: 0;
-  height: 50px;
-  background-color: #fff;
-  border-top: 1px solid #ebedf0;
+.merchant-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
-  z-index: 99;
+  padding: 12px 16px;
+  border-top: 1px solid #f7f8fa;
+  background-color: #fafafa;
 }
 
-.footer-left {
+.merchant-total {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.total-price {
-  margin-left: 8px;
+  align-items: baseline;
 }
 
 .price-label {
@@ -316,33 +315,24 @@ onMounted(() => {
   color: #323233;
 }
 
-.total-price .price-symbol {
+.merchant-total .price-symbol {
   font-size: 12px;
   color: #ee0a24;
+  margin-left: 4px;
 }
 
-.total-price .price-value {
+.merchant-total .price-value {
   font-size: 18px;
   color: #ee0a24;
   font-weight: 500;
 }
 
-.footer-right {
+.merchant-checkout-btn {
   background: linear-gradient(135deg, #ee0a24 0%, #ff455a 100%);
   color: #fff;
   padding: 8px 20px;
   border-radius: 20px;
   font-size: 14px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.checkout-count {
-  background-color: rgba(255, 255, 255, 0.2);
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 12px;
 }
 </style>

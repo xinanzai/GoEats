@@ -225,6 +225,9 @@ async function handlePay(orderId) {
     })
     await payOrder(orderId)
     showToast('支付成功')
+    currentPage.value = 1
+    finished.value = false
+    orders.value = []
     fetchOrders(true)
   } catch (error) {
     if (error !== 'cancel') {
@@ -246,6 +249,9 @@ async function confirmCancel() {
     })
     showToast('订单已取消')
     showCancelDialog.value = false
+    currentPage.value = 1
+    finished.value = false
+    orders.value = []
     fetchOrders(true)
   } catch (error) {
     console.error('取消订单失败:', error)
