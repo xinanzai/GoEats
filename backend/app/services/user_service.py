@@ -221,3 +221,18 @@ class UserService:
         await self.db.flush()
         await self.db.refresh(user)
         return user
+
+    async def reset_password(self, user_id: int, new_password: str) -> None:
+        """重置密码（管理员操作，无需验证旧密码）。
+
+        Args:
+            user_id: 用户 ID。
+            new_password: 新密码。
+
+        Raises:
+            NotFoundException: 当用户不存在时。
+        """
+        user = await self.get_by_id(user_id)
+
+        user.password_hash = get_password_hash(new_password)
+        await self.db.flush()

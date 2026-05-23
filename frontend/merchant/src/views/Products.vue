@@ -215,21 +215,71 @@
         </el-form-item>
 
         <el-form-item label="商品主图">
-          <el-input
-            v-model="productForm.image_url"
-            placeholder="请输入图片URL"
-            style="width: 400px"
-          />
+          <div class="image-upload-container">
+            <el-upload
+              class="image-uploader"
+              action=""
+              :show-file-list="false"
+              :on-change="handleMainImageChange"
+              :before-upload="beforeImageUpload"
+              :disabled="submitting"
+            >
+              <img v-if="productForm.image_url" :src="getImageUrl(productForm.image_url)" class="uploaded-image" />
+              <el-icon v-else class="uploader-icon"><Picture /></el-icon>
+            </el-upload>
+            <div class="upload-tips">
+              <span class="tip-text">支持 jpg、png、gif、webp 格式，最大10MB</span>
+              <el-button
+                v-if="productForm.image_url"
+                type="danger"
+                size="small"
+                text
+                @click="productForm.image_url = ''"
+              >
+                删除
+              </el-button>
+            </div>
+          </div>
         </el-form-item>
 
         <el-form-item label="多张图片">
-          <el-input
-            v-model="productForm.images"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入多张图片URL，用逗号分隔"
-            style="width: 400px"
-          />
+          <div class="multi-image-section">
+            <div class="multi-image-list">
+              <div v-for="(img, index) in productForm.multiImages" :key="index" class="multi-image-item">
+                <el-image
+                  :src="getImageUrl(img.url)"
+                  fit="cover"
+                  class="multi-image-preview"
+                  :preview-src-list="productForm.multiImages.map(i => getImageUrl(i.url))"
+                />
+                <el-button
+                  type="danger"
+                  size="small"
+                  :icon="Delete"
+                  circle
+                  class="image-delete-btn"
+                  @click="removeMultiImage(index)"
+                />
+              </div>
+              <el-upload
+                v-if="productForm.multiImages.length < 9"
+                class="simple-uploader"
+                action=""
+                :show-file-list="false"
+                :on-change="handleMultiImageAdd"
+                :before-upload="beforeImageUpload"
+                :disabled="submitting"
+              >
+                <div class="upload-trigger">
+                  <el-icon :size="30"><Plus /></el-icon>
+                  <span class="upload-text">上传</span>
+                </div>
+              </el-upload>
+            </div>
+            <div class="upload-tips">
+              <span class="tip-text">最多上传9张商品图片，jpg、png、gif、webp 格式，单张最大10MB</span>
+            </div>
+          </div>
         </el-form-item>
 
         <el-form-item label="上架状态">
@@ -253,9 +303,10 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Search, Upload, Delete, Picture } from '@element-plus/icons-vue'
 import { getMyProducts, createProduct, updateProduct, deleteProduct, toggleProduct } from '@/api/products'
 import { getMyCategories } from '@/api/merchants'
+import { uploadProductImage } from '@/api/upload'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -287,9 +338,11 @@ const productForm = reactive({
   stock: 0,
   sort_order: 0,
   image_url: '',
-  images: '',
+  multiImages: [],
   is_available: true
 })
+
+const uploading = ref(false)
 
 const productRules = {
   name: [
@@ -392,6 +445,18 @@ function handleAdd() {
 
 function handleEdit(row) {
   isEdit.value = true
+  let multiImages = []
+  if (row.images) {
+    try {
+      const parsed = typeof row.images === 'string' ? JSON.parse(row.images) : row.images
+      if (Array.isArray(parsed)) {
+        multiImages = parsed.map(url => ({ url, name: '' }))
+      }
+    } catch (e) {
+      const urls = row.images.split(',').filter(u => u.trim())
+      multiImages = urls.map(url => ({ url, name: '' }))
+    }
+  }
   Object.assign(productForm, {
     id: row.id,
     name: row.name,
@@ -402,7 +467,7 @@ function handleEdit(row) {
     stock: row.stock,
     sort_order: row.sort_order,
     image_url: row.image_url || '',
-    images: row.images || '',
+    multiImages: multiImages,
     is_available: row.is_available
   })
   dialogVisible.value = true
@@ -423,8 +488,70 @@ function resetForm() {
   productForm.stock = 0
   productForm.sort_order = 0
   productForm.image_url = ''
-  productForm.images = ''
+  productForm.multiImages = []
   productForm.is_available = true
+}
+
+function getImageUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  return url
+}
+
+function beforeImageUpload(file) {
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+  return false
+}
+
+async function handleMainImageChange(file) {
+  if (uploading.value) return
+  try {
+    uploading.value = true
+    const response = await uploadProductImage(file.raw)
+    productForm.image_url = response.data.url
+    ElMessage.success('主图上传成功')
+  } catch (error) {
+    console.error('主图上传失败:', error)
+  } finally {
+    uploading.value = false
+  }
+}
+
+async function handleMultiImageAdd(file) {
+  if (uploading.value) return
+  if (productForm.multiImages.length >= 9) {
+    ElMessage.warning('最多只能上传9张图片')
+    return
+  }
+  try {
+    uploading.value = true
+    const response = await uploadProductImage(file.raw)
+    productForm.multiImages.push({
+      url: response.data.url,
+      name: response.data.filename
+    })
+    ElMessage.success('图片上传成功')
+  } catch (error) {
+    console.error('图片上传失败:', error)
+  } finally {
+    uploading.value = false
+  }
+}
+
+function removeMultiImage(index) {
+  productForm.multiImages.splice(index, 1)
 }
 
 async function handleSubmit() {
@@ -433,6 +560,8 @@ async function handleSubmit() {
     submitting.value = true
     const data = { ...productForm }
     if (!data.original_price) delete data.original_price
+    data.images = JSON.stringify(data.multiImages.map(img => img.url))
+    delete data.multiImages
 
     if (isEdit.value) {
       await updateProduct(data.id, data)
@@ -544,5 +673,125 @@ onMounted(() => {
   margin-left: 8px;
   font-size: 12px;
   color: #909399;
+}
+
+.image-upload-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.image-uploader {
+  width: 160px;
+  height: 160px;
+}
+
+.image-uploader :deep(.el-upload) {
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.image-uploader :deep(.el-upload:hover) {
+  border-color: #409eff;
+}
+
+.uploader-icon {
+  font-size: 48px;
+  color: #8c939d;
+  width: 160px;
+  height: 160px;
+  text-align: center;
+  line-height: 160px;
+}
+
+.uploaded-image {
+  width: 160px;
+  height: 160px;
+  display: block;
+  object-fit: cover;
+}
+
+.upload-tips {
+  font-size: 12px;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.multi-image-section {
+  width: 100%;
+}
+
+.multi-image-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.multi-image-item {
+  position: relative;
+  width: 100px;
+  height: 100px;
+}
+
+.multi-image-preview {
+  width: 100px;
+  height: 100px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.multi-image-preview :deep(.el-image__inner) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-delete-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+}
+
+.simple-uploader {
+  width: 100px;
+  height: 100px;
+}
+
+.simple-uploader :deep(.el-upload) {
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.simple-uploader :deep(.el-upload:hover) {
+  border-color: #409eff;
+}
+
+.upload-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #8c939d;
+}
+
+.upload-text {
+  font-size: 12px;
+  color: #8c939d;
 }
 </style>

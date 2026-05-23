@@ -398,3 +398,50 @@ class TestUserPasswordUpdate:
 
         with pytest.raises(NotFoundException):
             await service.update_password(99999, "oldpass", "newpass")
+
+
+@pytest.mark.asyncio
+class TestUserResetPassword:
+    """用户密码重置测试（管理员操作）"""
+
+    async def test_reset_password_success(self, db_session: AsyncSession):
+        """测试管理员成功重置用户密码"""
+        created = await _create_user(db_session, username="resetuser", phone="13800002000", password="oldpass123")
+        service = UserService(db_session)
+        await service.reset_password(created.id, "newpass456")
+
+        from app.core.security import verify_password
+        user = await service.get_by_id(created.id)
+        assert verify_password("newpass456", user.password_hash) is True
+        assert verify_password("oldpass123", user.password_hash) is False
+
+    async def test_reset_password_not_found(self, db_session: AsyncSession):
+        """测试重置不存在用户的密码"""
+        service = UserService(db_session)
+
+        with pytest.raises(NotFoundException):
+            await service.reset_password(99999, "newpass")
+
+    async def test_reset_password_without_old_password(self, db_session: AsyncSession):
+        """测试重置密码不需要旧密码"""
+        created = await _create_user(db_session, username="resetuser2", phone="13800002001", password="verysecret")
+        service = UserService(db_session)
+
+        # 不需要提供旧密码即可重置
+        await service.reset_password(created.id, "brandnewpass")
+
+        from app.core.security import verify_password
+        user = await service.get_by_id(created.id)
+        assert verify_password("brandnewpass", user.password_hash) is True
+
+    async def test_reset_password_short_password(self, db_session: AsyncSession):
+        """测试重置密码为短密码（Service层不限制，由Schema层校验）"""
+        created = await _create_user(db_session, username="resetuser3", phone="13800002002", password="oldpass")
+        service = UserService(db_session)
+
+        # Service层本身不校验密码长度，直接哈希
+        await service.reset_password(created.id, "ab")
+
+        from app.core.security import verify_password
+        user = await service.get_by_id(created.id)
+        assert verify_password("ab", user.password_hash) is True

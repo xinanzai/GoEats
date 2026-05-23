@@ -1,10 +1,17 @@
 <template>
   <div class="profile">
     <div class="profile-header" @click="handleEditProfile">
-      <div class="avatar-wrapper">
+      <div class="avatar-wrapper" @click.stop="handleAvatarClick">
+        <input
+          ref="avatarInput"
+          type="file"
+          accept="image/*"
+          class="avatar-input"
+          @change="onAvatarSelected"
+        />
         <van-image
           v-if="authStore.userInfo?.avatar"
-          :src="authStore.userInfo.avatar"
+          :src="getImageUrl(authStore.userInfo.avatar)"
           class="avatar"
           round
           width="64"
@@ -13,6 +20,7 @@
         <div v-else class="avatar-default">
           {{ authStore.userInfo?.username?.charAt(0) || '用' }}
         </div>
+        <van-icon name="photograph" class="avatar-camera" />
       </div>
       <div class="user-info">
         <div class="username">{{ authStore.userInfo?.username || '加载中...' }}</div>
@@ -124,13 +132,16 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
-import { changePassword } from '@/api/users'
-import { showConfirmDialog, showToast } from 'vant'
+import { changePassword, updateUserProfile } from '@/api/users'
+import { uploadAvatar } from '@/api/upload'
+import { showConfirmDialog, showToast, showLoadingToast, closeToast } from 'vant'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const showPasswordDialog = ref(false)
 const showAboutDialog = ref(false)
+const uploading = ref(false)
+const avatarInput = ref(null)
 const passwordForm = ref({
   oldPassword: '',
   newPassword: '',
@@ -139,6 +150,60 @@ const passwordForm = ref({
 
 function handleEditProfile() {
   showToast('编辑个人信息功能开发中')
+}
+
+function getImageUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  return url
+}
+
+function handleAvatarClick() {
+  if (uploading.value) return
+  if (avatarInput.value) {
+    avatarInput.value.click()
+  }
+}
+
+async function onAvatarSelected(event) {
+  const file = event.target.files[0]
+  if (!file) return
+
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+
+  if (!isImage) {
+    showToast('只能上传图片文件!')
+    event.target.value = ''
+    return
+  }
+  if (!isLt10M) {
+    showToast('图片大小不能超过 10MB!')
+    event.target.value = ''
+    return
+  }
+
+  try {
+    uploading.value = true
+    showLoadingToast({
+      message: '上传中...',
+      forbidClick: true,
+      duration: 0
+    })
+    const result = await uploadAvatar(file)
+    await updateUserProfile({ avatar: result.data.url })
+    await authStore.fetchUserInfo()
+    showToast('头像上传成功')
+  } catch (error) {
+    console.error('头像上传失败:', error)
+    showToast('上传失败，请重试')
+  } finally {
+    uploading.value = false
+    closeToast()
+    event.target.value = ''
+  }
 }
 
 async function handleChangePassword() {
@@ -207,6 +272,15 @@ async function handleLogout() {
 
 .avatar-wrapper {
   flex-shrink: 0;
+  position: relative;
+}
+
+.avatar-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .avatar {
@@ -225,6 +299,24 @@ async function handleLogout() {
   font-size: 28px;
   font-weight: bold;
   border: 2px solid #fff;
+  cursor: pointer;
+}
+
+.avatar-camera {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 22px;
+  height: 22px;
+  background-color: #1989fa;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border: 2px solid #fff;
+  cursor: pointer;
 }
 
 .user-info {

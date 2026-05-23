@@ -52,10 +52,22 @@ export function toggleUserStatus(id, data) {
   return request.put(`/admin/users/${id}/status`, data)
 }
 
+/**
+ * 重置用户密码
+ * @param {number} id - 用户ID
+ * @param {Object} data - 密码数据
+ * @param {string} data.new_password - 新密码
+ * @returns {Promise}
+ */
+export function resetUserPassword(id, data) {
+  return request.put(`/admin/users/${id}/reset-password`, data)
+}
+
 export default {
   getDashboardStats,
   getUserList,
   getUserDetail,
   updateUser,
   toggleUserStatus,
+  resetUserPassword,
 }

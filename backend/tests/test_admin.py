@@ -168,6 +168,66 @@ class TestAdminUserManagement:
         response = await client.get("/api/v1/admin/users")
         assert response.status_code == 403
 
+    async def test_reset_user_password_success(self, client: AsyncClient, db_session: AsyncSession):
+        """测试管理员重置用户密码成功"""
+        admin = await _create_user(db_session, username="reset_admin", phone="13800060040", role="admin", password="admin123")
+        user = await _create_user(db_session, username="reset_target", phone="13800060041", role="user", password="oldpass")
+        headers = get_test_headers(user_id=admin.id, username="reset_admin", role="admin", phone="13800060040")
+
+        response = await client.put(
+            f"/api/v1/admin/users/{user.id}/reset-password",
+            headers=headers,
+            json={"new_password": "newpassword123"}
+        )
+        assert response.status_code == 204
+
+        # 验证密码已更新
+        from app.core.security import verify_password
+        from sqlalchemy import select
+        from app.models.user import User
+        result = await db_session.execute(select(User).where(User.id == user.id))
+        updated_user = result.scalar_one()
+        assert verify_password("newpassword123", updated_user.password_hash) is True
+        assert verify_password("oldpass", updated_user.password_hash) is False
+
+    async def test_reset_user_password_invalid_password(self, client: AsyncClient, db_session: AsyncSession):
+        """测试重置密码密码过短"""
+        admin = await _create_user(db_session, username="reset_admin2", phone="13800060042", role="admin")
+        user = await _create_user(db_session, username="reset_target2", phone="13800060043", role="user")
+        headers = get_test_headers(user_id=admin.id, username="reset_admin2", role="admin", phone="13800060042")
+
+        response = await client.put(
+            f"/api/v1/admin/users/{user.id}/reset-password",
+            headers=headers,
+            json={"new_password": "ab"}
+        )
+        assert response.status_code == 422
+
+    async def test_reset_user_password_not_found(self, client: AsyncClient, db_session: AsyncSession):
+        """测试重置不存在用户的密码"""
+        admin = await _create_user(db_session, username="reset_admin3", phone="13800060044", role="admin")
+        headers = get_test_headers(user_id=admin.id, username="reset_admin3", role="admin", phone="13800060044")
+
+        response = await client.put(
+            "/api/v1/admin/users/99999/reset-password",
+            headers=headers,
+            json={"new_password": "newpassword123"}
+        )
+        assert response.status_code == 404
+
+    async def test_reset_password_non_admin_fail(self, client: AsyncClient, db_session: AsyncSession):
+        """测试非管理员重置密码失败"""
+        user = await _create_user(db_session, username="reset_nonadmin", phone="13800060045", role="user", password="user123")
+        target = await _create_user(db_session, username="reset_target3", phone="13800060046", role="user")
+        headers = get_test_headers(user_id=user.id, username="reset_nonadmin", role="user", phone="13800060045")
+
+        response = await client.put(
+            f"/api/v1/admin/users/{target.id}/reset-password",
+            headers=headers,
+            json={"new_password": "newpassword123"}
+        )
+        assert response.status_code == 403
+
 
 class TestAdminMerchantManagement:
     """测试管理端商家管理"""

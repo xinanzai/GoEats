@@ -76,13 +76,20 @@
             {{ formatDateTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="300">
+        <el-table-column label="操作" fixed="right" width="400">
           <template #default="{ row }">
             <el-button size="small" @click="handleViewDetail(row)">
               详情
             </el-button>
             <el-button size="small" type="primary" @click="handleEdit(row)">
               编辑
+            </el-button>
+            <el-button
+              size="small"
+              type="warning"
+              @click="handleResetPassword(row)"
+            >
+              重置密码
             </el-button>
             <el-button
               size="small"
@@ -144,6 +151,52 @@
     </el-dialog>
 
     <el-dialog
+      v-model="resetPasswordDialogVisible"
+      title="重置用户密码"
+      width="450px"
+    >
+      <el-alert
+        title="注意：重置密码后将使用新密码登录，请妥善保存新密码。"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 20px"
+      />
+      <el-form
+        ref="resetPasswordFormRef"
+        :model="resetPasswordForm"
+        :rules="resetPasswordRules"
+        label-width="100px"
+      >
+        <el-form-item label="用户名">
+          <el-input :value="resetPasswordForm.username" disabled />
+        </el-form-item>
+        <el-form-item label="新密码" prop="new_password">
+          <el-input
+            v-model="resetPasswordForm.new_password"
+            type="password"
+            show-password
+            placeholder="请输入新密码（至少6位）"
+          />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirm_password">
+          <el-input
+            v-model="resetPasswordForm.confirm_password"
+            type="password"
+            show-password
+            placeholder="请再次输入新密码"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetPasswordDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveResetPassword" :loading="resetting">
+          确认重置
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
       v-model="editDialogVisible"
       title="编辑用户信息"
       width="500px"
@@ -161,7 +214,35 @@
           <el-input v-model="editForm.phone" />
         </el-form-item>
         <el-form-item label="头像">
-          <el-input v-model="editForm.avatar" placeholder="头像URL" />
+          <div class="avatar-upload">
+            <el-upload
+              class="avatar-uploader"
+              action=""
+              :show-file-list="false"
+              :on-change="handleAvatarChange"
+              :before-upload="beforeAvatarUpload"
+              :disabled="saving || uploading"
+            >
+              <el-avatar :size="80" :src="editForm.avatar" v-if="editForm.avatar">
+                <img :src="getImageUrl(editForm.avatar)" alt="头像" />
+              </el-avatar>
+              <el-avatar :size="80" v-else class="avatar-placeholder">
+                <el-icon :size="30"><UserFilled /></el-icon>
+              </el-avatar>
+            </el-upload>
+            <div class="upload-info">
+              <el-button
+                v-if="editForm.avatar"
+                type="danger"
+                text
+                size="small"
+                @click="editForm.avatar = ''"
+              >
+                清除
+              </el-button>
+              <span class="upload-tip">点击上传头像，支持 jpg、png 格式，最大10MB</span>
+            </div>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -177,16 +258,21 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
-import { getUserList, getUserDetail, toggleUserStatus, updateUser } from '@/api/admin'
+import { Search, UserFilled } from '@element-plus/icons-vue'
+import { getUserList, getUserDetail, toggleUserStatus, updateUser, resetUserPassword } from '@/api/admin'
+import { uploadAvatar } from '@/api/upload'
 
 const loading = ref(false)
 const saving = ref(false)
+const uploading = ref(false)
+const resetting = ref(false)
 const userList = ref([])
 const currentUser = ref(null)
 const detailDialogVisible = ref(false)
 const editDialogVisible = ref(false)
+const resetPasswordDialogVisible = ref(false)
 const editFormRef = ref(null)
+const resetPasswordFormRef = ref(null)
 
 const searchForm = reactive({
   search: '',
@@ -206,6 +292,33 @@ const editForm = reactive({
   phone: '',
   avatar: ''
 })
+
+const resetPasswordForm = reactive({
+  id: null,
+  username: '',
+  new_password: '',
+  confirm_password: ''
+})
+
+const resetPasswordRules = {
+  new_password: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 50, message: '密码长度在6到50个字符', trigger: 'blur' }
+  ],
+  confirm_password: [
+    { required: true, message: '请确认新密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== resetPasswordForm.new_password) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
 
 const editRules = {
   username: [
@@ -334,6 +447,69 @@ function handleEdit(row) {
   editDialogVisible.value = true
 }
 
+function handleResetPassword(row) {
+  resetPasswordForm.id = row.id
+  resetPasswordForm.username = row.username
+  resetPasswordForm.new_password = ''
+  resetPasswordForm.confirm_password = ''
+  resetPasswordDialogVisible.value = true
+}
+
+async function handleSaveResetPassword() {
+  try {
+    await resetPasswordFormRef.value.validate()
+    resetting.value = true
+    await resetUserPassword(resetPasswordForm.id, {
+      new_password: resetPasswordForm.new_password
+    })
+    ElMessage.success('密码重置成功')
+    resetPasswordDialogVisible.value = false
+  } catch (error) {
+    if (error !== false) {
+      console.error('重置密码失败:', error)
+    }
+  } finally {
+    resetting.value = false
+  }
+}
+
+function getImageUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  return url
+}
+
+function beforeAvatarUpload(file) {
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+  return false
+}
+
+async function handleAvatarChange(file) {
+  if (uploading.value) return
+  try {
+    uploading.value = true
+    const response = await uploadAvatar(file.raw)
+    editForm.avatar = response.data.url
+    ElMessage.success('头像上传成功')
+  } catch (error) {
+    console.error('头像上传失败:', error)
+  } finally {
+    uploading.value = false
+  }
+}
+
 async function handleSaveEdit() {
   try {
     await editFormRef.value.validate()
@@ -390,5 +566,41 @@ onMounted(() => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.avatar-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.avatar-uploader {
+  cursor: pointer;
+}
+
+.avatar-uploader :deep(.el-avatar) {
+  transition: all 0.3s;
+}
+
+.avatar-uploader:hover :deep(.el-avatar) {
+  opacity: 0.8;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.avatar-placeholder {
+  background-color: #f5f7fa;
+  color: #909399;
+}
+
+.upload-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.upload-tip {
+  font-size: 12px;
+  color: #909399;
 }
 </style>

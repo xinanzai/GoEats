@@ -1,7 +1,11 @@
+import os
 import sys
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
 from app.config import settings
 from app.core.exceptions import AppException
 from app.database import init_db
@@ -59,6 +63,12 @@ def create_app() -> FastAPI:
     # 注册路由
     from app.api.router import router
     app.include_router(router, prefix="/api/v1")
+
+    # 挂载静态文件服务（上传的文件）
+    upload_dir = settings.UPLOAD_DIR
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
     return app
 

@@ -36,27 +36,33 @@
 
             <el-form-item label="店铺Logo">
               <div class="logo-upload">
-                <el-avatar :size="100" :src="basicForm.logo" v-if="basicForm.logo">
-                  <img :src="basicForm.logo" alt="Logo" class="logo-image" />
-                </el-avatar>
-                <el-avatar :size="100" v-else class="logo-placeholder">
-                  <el-icon :size="40"><Shop /></el-icon>
-                </el-avatar>
-                <el-input
-                  v-model="basicForm.logo"
-                  placeholder="请输入Logo图片URL"
-                  style="margin-left: 16px; width: 400px"
-                />
-                <el-button
-                  v-if="basicForm.logo"
-                  type="danger"
-                  text
-                  size="small"
-                  @click="basicForm.logo = ''"
-                  style="margin-left: 8px"
+                <el-upload
+                  class="logo-uploader"
+                  action=""
+                  :show-file-list="false"
+                  :on-change="handleLogoChange"
+                  :before-upload="beforeLogoUpload"
+                  :disabled="saving || uploading"
                 >
-                  清除
-                </el-button>
+                  <el-avatar :size="100" :src="basicForm.logo" v-if="basicForm.logo">
+                    <img :src="getImageUrl(basicForm.logo)" alt="Logo" class="logo-image" />
+                  </el-avatar>
+                  <el-avatar :size="100" v-else class="logo-placeholder">
+                    <el-icon :size="40"><Shop /></el-icon>
+                  </el-avatar>
+                </el-upload>
+                <div class="upload-actions">
+                  <el-button
+                    v-if="basicForm.logo"
+                    type="danger"
+                    text
+                    size="small"
+                    @click="basicForm.logo = ''"
+                  >
+                    清除
+                  </el-button>
+                  <span class="upload-tip">点击头像上传Logo，支持 jpg、png 格式，最大10MB</span>
+                </div>
               </div>
             </el-form-item>
 
@@ -145,10 +151,12 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Shop } from '@element-plus/icons-vue'
+import { Shop, Upload } from '@element-plus/icons-vue'
 import { getMyMerchant, updateMyMerchant } from '@/api/merchants'
+import { uploadMerchantLogo } from '@/api/upload'
 
 const saving = ref(false)
+const uploading = ref(false)
 const activeTab = ref('basic')
 const merchantInfo = ref({})
 const basicFormRef = ref(null)
@@ -214,6 +222,43 @@ function formatDateTime(dateStr) {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+function getImageUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  return url
+}
+
+function beforeLogoUpload(file) {
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+  return false
+}
+
+async function handleLogoChange(file) {
+  if (uploading.value) return
+  try {
+    uploading.value = true
+    const response = await uploadMerchantLogo(file.raw)
+    basicForm.logo = response.data.url
+    ElMessage.success('Logo上传成功')
+  } catch (error) {
+    console.error('Logo上传失败:', error)
+  } finally {
+    uploading.value = false
+  }
 }
 
 function getStatusType(status) {
@@ -354,8 +399,33 @@ onMounted(() => {
 
 .logo-upload {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.logo-uploader {
+  cursor: pointer;
+}
+
+.logo-uploader :deep(.el-avatar) {
+  transition: all 0.3s;
+}
+
+.logo-uploader:hover :deep(.el-avatar) {
+  opacity: 0.8;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.upload-actions {
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+}
+
+.upload-tip {
+  font-size: 12px;
+  color: #909399;
 }
 
 .logo-image {

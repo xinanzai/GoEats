@@ -7,6 +7,7 @@ from app.api.endpoints import (
     products,
     orders,
     admin,
+    upload,
 )
 
 
@@ -20,3 +21,4 @@ router.include_router(categories.router, prefix="/categories", tags=["分类"])
 router.include_router(products.router, prefix="/products", tags=["商品"])
 router.include_router(orders.router, prefix="/orders", tags=["订单"])
 router.include_router(admin.router, prefix="/admin", tags=["管理"])
+router.include_router(upload.router, prefix="/upload", tags=["文件上传"])

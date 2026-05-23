@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas.user import UserResponse, UserUpdate
+from app.schemas.user import UserResponse, UserUpdate, ResetPasswordRequest
 from app.schemas.merchant import MerchantResponse
 from app.schemas.order import OrderResponse, OrderItemResponse
 from app.services.user_service import UserService
@@ -140,6 +140,22 @@ async def update_user_status(
         created_at=user.created_at,
         updated_at=user.updated_at,
     )
+
+
+@router.put("/users/{user_id}/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_user_password(
+    user_id: int,
+    password_data: ResetPasswordRequest,
+    admin_user: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """重置用户密码（管理员操作）
+    
+    返回 204 No Content，表示操作成功，无响应体。
+    """
+    user_service = UserService(db)
+    await user_service.reset_password(user_id, password_data.new_password)
+    # 204 No Content，不返回任何内容
 
 
 @router.get("/merchants")
