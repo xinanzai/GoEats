@@ -201,28 +201,54 @@ class TestAuthAPI:
 
 ### Vitest 配置
 
+Vitest 测试配置集成在 `vite.config.js` 中，无需单独配置文件。
+
+**Admin / Merchant 端配置：**
 ```javascript
-// vitest.config.js
-import { defineConfig } from 'vitest/config'
+// vite.config.js
+import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
   test: {
-    globals: true,
     environment: 'jsdom',
-    setupFiles: './tests/setup.js',
+    globals: true,
+    setupFiles: ['./tests/setup.js'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80
-      }
-    }
-  }
+      reportsDirectory: './coverage',
+    },
+  },
+})
+```
+
+**User 端配置（含 Vant 自动导入）：**
+```javascript
+// vite.config.js
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import Components from 'unplugin-vue-components/vite'
+import { VantResolver } from '@vant/auto-import-resolver'
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    Components({
+      resolvers: [VantResolver({ importStyle: false })],
+    }),
+  ],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./tests/setup.js'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      reportsDirectory: './coverage',
+    },
+  },
 })
 ```
 

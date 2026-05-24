@@ -32,23 +32,51 @@
 
 ## 目录结构规范
 
+### 实际目录结构
+
 ```
 src/
 ├── api/                    # API 请求模块
-├── assets/                 # 静态资源
-├── components/             # 公共组件
-│   ├── common/            # 通用组件
-│   └── business/          # 业务组件
-├── composables/            # 组合式函数
-├── constants/              # 常量定义
-├── directives/             # 自定义指令
+│   ├── auth.js             # 认证 API
+│   ├── *.js                # 按业务模块拆分
+│   └── ...
 ├── layouts/                # 布局组件
+│   └── MainLayout.vue
 ├── router/                 # 路由配置
+│   └── index.js
 ├── store/                  # Pinia 状态管理
+│   ├── auth.js             # 认证状态
+│   └── cart.js             # 购物车状态（user 端）
 ├── utils/                  # 工具函数
+│   └── request.js          # Axios 封装
 ├── views/                  # 页面组件
-└── App.vue
+│   ├── Login.vue
+│   ├── Dashboard.vue
+│   └── ...
+├── App.vue                 # 根组件
+└── main.js                 # 入口文件
 ```
+
+### 各端 API 模块差异
+
+| 模块 | Admin | Merchant | User |
+|------|-------|----------|------|
+| auth.js | ✅ | ✅ | ✅ |
+| admin.js | ✅ | - | - |
+| merchants.js | ✅ | ✅ | ✅ |
+| products.js | - | ✅ | ✅ |
+| orders.js | ✅ | ✅ | ✅ |
+| upload.js | ✅ | ✅ | ✅ |
+| dashboard.js | - | ✅ | - |
+| users.js | - | - | ✅ |
+
+### 各端 UI 框架
+
+| 端 | UI 框架 | 说明 |
+|---|---------|------|
+| **Admin** | Element Plus | 桌面端管理后台，使用 Element Plus 组件库 |
+| **Merchant** | Element Plus | 桌面端商家后台，使用 Element Plus 组件库 |
+| **User** | Vant | 移动端用户端，使用 Vant 组件库（自动导入） |
 
 ---
 
