@@ -104,7 +104,7 @@ class AuthService:
         """用户登录。
 
         Args:
-            login_data: 登录数据（手机号和密码）。
+            login_data: 登录数据（手机号或用户名和密码）。
 
         Returns:
             用户对象和访问令牌的元组。
@@ -113,8 +113,12 @@ class AuthService:
             NotFoundException: 当用户不存在时。
             ValidationException: 当密码错误时。
         """
-        # 查找用户
-        result = await self.db.execute(select(User).where(User.phone == login_data.phone))
+        # 查找用户（支持手机号或用户名登录）
+        result = await self.db.execute(
+            select(User).where(
+                (User.phone == login_data.phone) | (User.username == login_data.phone)
+            )
+        )
         user = result.scalar_one_or_none()
 
         if not user:

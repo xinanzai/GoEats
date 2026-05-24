@@ -37,14 +37,14 @@ class UserResponse(UserBase):
 
 
 class LoginRequest(BaseModel):
-    phone: str = Field(..., description="手机号")
+    phone: str = Field(..., description="手机号或用户名")
     password: str = Field(..., description="密码")
 
     @field_validator('phone')
     @classmethod
     def validate_phone(cls, v: str) -> str:
-        if not re.match(r'^1[3-9]\d{9}$', v):
-            raise ValueError('手机号格式不正确')
+        if not re.match(r'^1[3-9]\d{9}$', v) and (len(v) < 2 or len(v) > 50):
+            raise ValueError('手机号或用户名格式不正确')
         return v
 
 

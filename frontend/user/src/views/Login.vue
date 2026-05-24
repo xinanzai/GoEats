@@ -14,17 +14,15 @@
           <van-field
             v-model="loginData.phone"
             name="phone"
-            label="手机号"
-            placeholder="请输入手机号"
-            type="tel"
+            label="账号"
+            placeholder="请输入手机号或用户名"
             :rules="[
-              { required: true, message: '请输入手机号' },
-              { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确' },
+              { required: true, message: '请输入手机号或用户名' },
+              { pattern: /^1[3-9]\d{9}$|^[a-zA-Z0-9_\u4e00-\u9fa5]{2,50}$/, message: '请输入正确的手机号或用户名' },
             ]"
-            :formatter="(value) => value.replace(/\s/g, '')"
           >
             <template #button>
-              <van-icon name="phone-o" />
+              <van-icon name="user-o" />
             </template>
           </van-field>
           <van-field

@@ -16,8 +16,7 @@
         <el-form-item prop="phone">
           <el-input
             v-model="loginForm.phone"
-            placeholder="请输入手机号"
-            prefix-icon="User"
+            placeholder="请输入手机号或用户名"
             size="large"
             clearable
           >
@@ -32,7 +31,6 @@
             v-model="loginForm.password"
             type="password"
             placeholder="请输入密码"
-            prefix-icon="Lock"
             size="large"
             show-password
           >
@@ -96,10 +94,10 @@ const loginForm = reactive({
 
 const loginRules = {
   phone: [
-    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { required: true, message: '请输入手机号或用户名', trigger: 'blur' },
     {
-      pattern: /^1[3-9]\d{9}$/,
-      message: '手机号格式不正确',
+      pattern: /^1[3-9]\d{9}$|^[a-zA-Z0-9_\u4e00-\u9fa5]{2,50}$/,
+      message: '请输入正确的手机号或用户名',
       trigger: 'blur',
     },
   ],
