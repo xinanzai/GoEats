@@ -1,13 +1,15 @@
-import pytest
+from sqlalchemy.pool import StaticPool
+from datetime import datetime
+from decimal import Decimal
+
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
-from decimal import Decimal
 
 from app.main import app
 from app.database import Base, get_db
+from app.config import settings
 from app.core.security import create_access_token, get_password_hash
 from app.models.user import User
 from app.models.merchant import Merchant
@@ -17,13 +19,14 @@ from app.models.address import Address
 from app.models.order import Order
 from app.models.order_item import OrderItem
 
-
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_food_delivery.db"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 engine = create_async_engine(
     TEST_DATABASE_URL,
     echo=False,
     future=True,
+    poolclass=StaticPool,
+    connect_args={"check_same_thread": False},
 )
 
 TestingSessionLocal = sessionmaker(
@@ -37,7 +40,7 @@ TestingSessionLocal = sessionmaker(
 
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def setup_db():
-    """每个测试前后创建和清理数据库表"""
+    """每个测试前后重建表，内存数据库极快"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -301,38 +304,31 @@ async def _create_order_item(
     return item
 
 
-def generate_test_token(
-    user_id: int = 1,
-    username: str = "testuser",
-    role: str = "user",
-    phone: str = "13800000001",
-) -> str:
-    """生成测试用 JWT Token"""
-    payload = {
-        "sub": str(user_id),
-        "username": username,
-        "role": role,
-        "phone": phone,
-    }
-    return create_access_token(data=payload)
+def generate_test_token(user_id: int, username: str, role: str, phone: str, expires_delta=None):
+    """生成测试 JWT token"""
+    from datetime import timedelta
+    return create_access_token(
+        data={
+            "sub": str(user_id),
+            "username": username,
+            "role": role,
+            "phone": phone,
+        },
+        expires_delta=expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
 
 
-def get_test_headers(
-    user_id: int = 1,
-    username: str = "testuser",
-    role: str = "user",
-    phone: str = "13800000001",
-) -> dict:
-    """获取带认证信息的测试请求头"""
-    token = generate_test_token(user_id=user_id, username=username, role=role, phone=phone)
+def get_test_headers(user_id: int, username: str, role: str = "user", phone: str = "13800000001"):
+    """生成测试请求 headers"""
+    token = generate_test_token(user_id, username, role, phone)
     return {"Authorization": f"Bearer {token}"}
 
 
-def get_admin_headers() -> dict:
-    """获取管理员测试请求头"""
-    return get_test_headers(user_id=1, username="admin", role="admin", phone="13800000000")
+def get_admin_headers(user_id: int = 9999, username: str = "test_admin", phone: str = "13800000000"):
+    """生成管理员测试 headers"""
+    return get_test_headers(user_id, username, "admin", phone)
 
 
-def get_merchant_headers() -> dict:
-    """获取商家测试请求头"""
-    return get_test_headers(user_id=2, username="merchant_user", role="merchant", phone="13800000002")
+def get_merchant_headers(user_id: int = 9999, username: str = "test_merchant", phone: str = "13800000002"):
+    """生成商家测试 headers"""
+    return get_test_headers(user_id, username, "merchant", phone)

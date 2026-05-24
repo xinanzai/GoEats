@@ -176,10 +176,15 @@ class TestUserSchemaValidation:
         req = LoginRequest(phone="13800000001", password="password123")
         assert req.phone == "13800000001"
 
-    def test_login_request_invalid_phone(self):
-        """测试登录请求手机号校验"""
+    def test_login_request_by_username(self):
+        """测试登录请求使用用户名"""
+        req = LoginRequest(phone="myusername", password="password123")
+        assert req.phone == "myusername"
+
+    def test_login_request_invalid_account(self):
+        """测试登录请求账号校验（既不是合法手机号也不是合法用户名长度）"""
         with pytest.raises(ValidationError):
-            LoginRequest(phone="invalid", password="password123")
+            LoginRequest(phone="", password="password123")
 
     def test_token_response(self):
         """测试 Token 响应"""

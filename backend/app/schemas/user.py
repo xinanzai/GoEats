@@ -43,7 +43,7 @@ class LoginRequest(BaseModel):
     @field_validator('phone')
     @classmethod
     def validate_phone(cls, v: str) -> str:
-        if not re.match(r'^1[3-9]\d{9}$', v) and (len(v) < 2 or len(v) > 50):
+        if not re.match(r'^1[3-9]\d{9}$', v) and not (2 <= len(v) <= 50):
             raise ValueError('手机号或用户名格式不正确')
         return v
 

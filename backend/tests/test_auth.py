@@ -107,10 +107,23 @@ class TestLogin:
         })
         assert response.status_code == 404
 
-    async def test_login_invalid_phone_format(self, client: AsyncClient):
-        """测试无效手机号格式登录失败"""
+    async def test_login_by_username(self, client: AsyncClient, db_session: AsyncSession):
+        """测试使用用户名登录成功"""
+        await _create_user(db_session, phone="13800006667", username="usernamelogin", password="mypassword123")
         response = await client.post("/api/v1/auth/login", json={
-            "phone": "invalid",
+            "phone": "usernamelogin",
+            "password": "mypassword123",
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+
+    async def test_login_invalid_account_format(self, client: AsyncClient):
+        """测试无效账号格式登录失败（既不是合法手机号也不是合法用户名长度）"""
+        # 空字符串无法通过校验
+        response = await client.post("/api/v1/auth/login", json={
+            "phone": "",
             "password": "password123",
         })
         assert response.status_code == 422
